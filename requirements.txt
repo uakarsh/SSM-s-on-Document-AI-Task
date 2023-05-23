@@ -1,0 +1,14 @@
+numpy
+scipy
+pandas
+scikit-learn
+matplotlib
+tqdm
+pytorch_lightning
+evaluate
+seqeval
+wandb
+einops
+cmake # For pykeops support
+transformers
+datasets
