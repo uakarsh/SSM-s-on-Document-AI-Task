@@ -105,7 +105,58 @@ class S4DKernel(nn.Module):
             setattr(getattr(self, name), "_optim", optim)
 
 
+class S4D(nn.Module):
+    def __init__(self, d_model, d_state=64, dropout=0.0, transposed=True, **kernel_args):
+        super().__init__()
+
+        self.h = d_model
+        self.n = d_state
+        self.d_output = self.h
+        self.transposed = transposed
+
+        self.D = nn.Parameter(torch.randn(self.h))
+
+        # SSM Kernel
+        self.kernel = S4DKernel(self.h, N=self.n, **kernel_args)
+
+        # Pointwise
+        self.activation = nn.GELU()
+        # dropout_fn = nn.Dropout2d # NOTE: bugged in PyTorch 1.11
+        dropout_fn = DropoutNd
+        self.dropout = dropout_fn(dropout) if dropout > 0.0 else nn.Identity()
+
+        # position-wise output transform to mix features
+        self.output_linear = nn.Sequential(
+            nn.Conv1d(self.h, 2*self.h, kernel_size=1),
+            nn.GLU(dim=-2),
+        )
+
+    def forward(self, u, **kwargs):  # absorbs return_output and transformer src mask
+        """ Input and output shape (B, H, L) """
+        if not self.transposed:
+            u = u.transpose(-1, -2)
+        L = u.size(-1)
+
+        # Compute SSM Kernel
+        k = self.kernel(L=L)  # (H L)
+
+        # Convolution
+        k_f = torch.fft.rfft(k, n=2*L)  # (H L)
+        u_f = torch.fft.rfft(u, n=2*L)  # (B H L)
+        y = torch.fft.irfft(u_f*k_f, n=2*L)[..., :L]  # (B H L)
+
+        # Compute D term in state space equation - essentially a skip connection
+        y = y + u * self.D.unsqueeze(-1)
+
+        y = self.dropout(self.activation(y))
+        y = self.output_linear(y)
+        if not self.transposed:
+            y = y.transpose(-1, -2)
+        return y, None  # Return a dummy state to satisfy this repo's interface, but this can be modified
+
 # Ref: https://github.com/HazyResearch/state-spaces/blob/main/example.py
+
+
 class S4ModelForTokenClassification(nn.Module):
     def __init__(self, config):
         '''
@@ -127,7 +178,7 @@ class S4ModelForTokenClassification(nn.Module):
 
         for _ in range(config.num_hidden_layers):
             self.s4_layers.append(
-                S4D(config.hidden_size, dropout=config.hidden_dropout_prob,
+                S4D(config.hidden_size, d_state=config.intermediate_size, dropout=config.hidden_dropout_prob,
                     transposed=True, lr=min(0.001, config.lr))
             )
             self.norms.append(nn.LayerNorm(config.hidden_size))
