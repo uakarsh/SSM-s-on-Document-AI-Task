@@ -125,7 +125,7 @@ class S4ModelForTokenClassification(nn.Module):
 
         dropout_fn = DropoutNd
 
-        for _ in range(n_layers):
+        for _ in range(config.num_hidden_layers):
             self.s4_layers.append(
                 S4D(config.hidden_size, dropout=config.hidden_dropout_prob,
                     transposed=True, lr=min(0.001, config.lr))
@@ -200,7 +200,7 @@ class S4ModelForSequenceClassification(nn.Module):
 
         dropout_fn = DropoutNd
 
-        for _ in range(n_layers):
+        for _ in range(config.num_hidden_layers):
             self.s4_layers.append(
                 S4D(config.hidden_size, dropout=config.hidden_dropout_prob,
                     transposed=True, lr=min(0.001, config.lr))
