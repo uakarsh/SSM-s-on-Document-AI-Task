@@ -164,7 +164,7 @@ class S4ModelForTokenClassification(nn.Module):
             config: S4Config
         '''
         super().__init__()
-
+        self.config = config
         self.prenorm = config.prenorm
         self.emb = nn.Embedding(
             config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
@@ -224,7 +224,7 @@ class S4ModelForTokenClassification(nn.Module):
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.d_output), labels.view(-1))
+            loss = loss_fct(logits.view(-1, self.config.num_labels), labels.view(-1))
 
         return TokenClassifierOutput(
             loss=loss,
@@ -240,6 +240,7 @@ class S4ModelForSequenceClassification(nn.Module):
         '''
         super().__init__()
 
+        self.config = config
         self.prenorm = config.prenorm
         self.emb = nn.Embedding(
             config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
@@ -300,7 +301,7 @@ class S4ModelForSequenceClassification(nn.Module):
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.d_output), labels.view(-1))
+            loss = loss_fct(logits.view(-1, self.config.num_labels), labels.view(-1))
 
         return SequenceClassifierOutput(
             loss=loss,
