@@ -128,7 +128,7 @@ class S4ModelForTokenClassification(nn.Module):
         for _ in range(n_layers):
             self.s4_layers.append(
                 S4D(config.hidden_size, dropout=config.hidden_dropout_prob,
-                    transposed=True, lr=min(0.001, lr))
+                    transposed=True, lr=min(0.001, config.lr))
             )
             self.norms.append(nn.LayerNorm(config.hidden_size))
             self.dropouts.append(dropout_fn(config.hidden_dropout_prob))
@@ -203,7 +203,7 @@ class S4ModelForSequenceClassification(nn.Module):
         for _ in range(n_layers):
             self.s4_layers.append(
                 S4D(config.hidden_size, dropout=config.hidden_dropout_prob,
-                    transposed=True, lr=min(0.001, lr))
+                    transposed=True, lr=min(0.001, config.lr))
             )
             self.norms.append(nn.LayerNorm(config.hidden_size))
             self.dropouts.append(dropout_fn(config.hidden_dropout_prob))
