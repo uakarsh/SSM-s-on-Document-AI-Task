@@ -270,7 +270,7 @@ class S4ModelForSequenceClassification(nn.Module):
             input_ids: (B, L) where L is the sequence length
             labels: (B, L) where L is the sequence length
         Returns:
-            logits: (B, L, d_output)
+            logits: (B, d_output)
             loss: scalar
         """
         x = self.emb(input_ids)  # (B, L, d_input) -> (B, L, d_model)
