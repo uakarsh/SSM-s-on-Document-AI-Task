@@ -1,11 +1,11 @@
 # Entire reference from https://github.com/HazyResearch/state-spaces/blob/main/models/s4/s4d.py
-
 import math
+from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from transformers.modeling_outputs import SequenceClassifierOutput
+from transformers.modeling_outputs import SequenceClassifierOutput, TokenClassifierOutput
 
 
 class DropoutNd(nn.Module):
@@ -38,6 +38,21 @@ class DropoutNd(nn.Module):
         return X
 
 
+class Pooler(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.activation = nn.Tanh()
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        # We "pool" the model by simply taking the hidden state corresponding
+        # to the first token.
+        first_token_tensor = hidden_states[:, 0]
+        pooled_output = self.dense(first_token_tensor)
+        pooled_output = self.activation(pooled_output)
+        return pooled_output
+
+
 class S4DKernel(nn.Module):
     """Generate convolution kernel from diagonal SSM parameters."""
 
@@ -58,7 +73,7 @@ class S4DKernel(nn.Module):
         self.register("log_A_real", log_A_real, lr)
         self.register("A_imag", A_imag, lr)
 
-    def forward(self, L):
+    def forward(self, L: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         returns: (..., c, L) where c is number of channels (default 1)
         """
@@ -112,15 +127,16 @@ class S4ModelForTokenClassification(nn.Module):
 
         for _ in range(n_layers):
             self.s4_layers.append(
-                S4D(config.hidden_size, dropout=config.hidden_dropout_prob, transposed=True, lr=min(0.001, lr))
+                S4D(config.hidden_size, dropout=config.hidden_dropout_prob,
+                    transposed=True, lr=min(0.001, lr))
             )
             self.norms.append(nn.LayerNorm(config.hidden_size))
             self.dropouts.append(dropout_fn(config.hidden_dropout_prob))
 
         # Linear decoder
-        self.decoder = nn.Linear(config.hidden_size, config.num_classes)
+        self.decoder = nn.Linear(config.hidden_size, config.num_labels)
 
-    def forward(self, input_ids, labels=None, **kwargs):
+    def forward(self, input_ids: Optional[torch.Tensor] = None, labels: Optional[torch.Tensor] = None, **kwargs) -> TokenClassifierOutput:
         """
         Args:
             input_ids: (B, L) where L is the sequence length
@@ -151,6 +167,82 @@ class S4ModelForTokenClassification(nn.Module):
 
         x = x.transpose(-1, -2)
 
+        # Decode the outputs
+        logits = self.decoder(x)  # (B, L, d_model) -> (B, L, d_output)
+
+        loss = None
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits.view(-1, self.d_output), labels.view(-1))
+
+        return TokenClassifierOutput(
+            loss=loss,
+            logits=logits
+        )
+
+
+class S4ModelForSequenceClassification(nn.Module):
+    def __init__(self, config):
+        '''
+        Args:
+            config: S4Config
+        '''
+        super().__init__()
+
+        self.prenorm = config.prenorm
+        self.emb = nn.Embedding(
+            config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
+
+        # Stack S4 layers as residual blocks
+        self.s4_layers = nn.ModuleList()
+        self.norms = nn.ModuleList()
+        self.dropouts = nn.ModuleList()
+
+        dropout_fn = DropoutNd
+
+        for _ in range(n_layers):
+            self.s4_layers.append(
+                S4D(config.hidden_size, dropout=config.hidden_dropout_prob,
+                    transposed=True, lr=min(0.001, lr))
+            )
+            self.norms.append(nn.LayerNorm(config.hidden_size))
+            self.dropouts.append(dropout_fn(config.hidden_dropout_prob))
+
+        self.pooler = Pooler(config)
+        # Linear decoder
+        self.decoder = nn.Linear(config.hidden_size, config.num_labels)
+
+    def forward(self, input_ids: Optional[torch.Tensor] = None, labels: Optional[torch.Tensor] = None, **kwargs) -> SequenceClassifierOutput:
+        """
+        Args:
+            input_ids: (B, L) where L is the sequence length
+            labels: (B, L) where L is the sequence length
+        Returns:
+            logits: (B, L, d_output)
+            loss: scalar
+        """
+        x = self.emb(input_ids)  # (B, L, d_input) -> (B, L, d_model)
+        x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
+
+        for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
+            # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
+            z = x
+            if self.prenorm:
+                # Prenorm
+                z = norm(z.transpose(-1, -2)).transpose(-1, -2)
+
+            # Apply S4 block: we ignore the state input and output
+            z, _ = layer(z)
+            # Dropout on the output of the S4 block
+            z = dropout(z)
+            # Residual connection
+            x = z + x
+            if not self.prenorm:
+                # Postnorm
+                x = norm(x.transpose(-1, -2)).transpose(-1, -2)
+
+        x = x.transpose(-1, -2)
+        x = self.pooler(x)
         # Decode the outputs
         logits = self.decoder(x)  # (B, L, d_model) -> (B, L, d_output)
 
