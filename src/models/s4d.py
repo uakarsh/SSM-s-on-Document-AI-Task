@@ -296,7 +296,7 @@ class S4ModelForSequenceClassification(nn.Module):
         x = x.transpose(-1, -2)
         x = self.pooler(x)
         # Decode the outputs
-        logits = self.decoder(x)  # (B, L, d_model) -> (B, L, d_output)
+        logits = self.decoder(x)  # (B, d_model) -> (B, d_output)
 
         loss = None
         if labels is not None:
