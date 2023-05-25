@@ -30,14 +30,14 @@ For Multimodal approaches:
 
 ### 1.3. Results (without pre-training, and word embeddings initialized from LayoutLMv3's word embeddings)
 
-#### FUNSD Daaaset
+#### FUNSD Dataset
 
 | Model      | Precision | Recall | F1-Score | Accuracy |
 |------------|-----------|--------|----------|----------|
 | S4D        | 25.30     | 39.74  | 30.91    | 54.52    |
 | LayoutLMv3 | 0.0       | 0.0    | 0.0      | 17.92    |
 
-#### CORD Daaaset
+#### CORD Dataset
 
 | Model      | Precision | Recall | F1-Score | Accuracy |
 |------------|-----------|--------|----------|----------|
