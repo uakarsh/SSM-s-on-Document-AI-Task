@@ -35,7 +35,7 @@ For Multimodal approaches:
 | Model      | Precision | Recall | F1-Score | Accuracy |
 |------------|-----------|--------|----------|----------|
 | S4D        | 25.30     | 39.74  | 30.91    | 54.52    |
-| LayoutLMv3 | 5.43      | 1.73   | 2.63     | 29.51    |
+| LayoutLMv3 | 05.43     | 01.73  | 02.63    | 29.51    |
 
 #### CORD Dataset
 
