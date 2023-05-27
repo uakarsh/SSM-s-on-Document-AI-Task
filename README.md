@@ -42,7 +42,7 @@ For Multimodal approaches:
 | Model      | Precision | Recall | F1-Score | Accuracy |
 |------------|-----------|--------|----------|----------|
 | S4D        | 79.55     | 84.73  | 82.05    | 88.62    |
-| LayoutLMv3 | 45.46     | 60.40  | 51.88    | 66.08    |
+| LayoutLMv3 | 53.56     | 68.56  | 60.14    | 72.66    |
 
 
 
