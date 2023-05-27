@@ -42,10 +42,8 @@ For Multimodal approaches:
 | Model      | Precision | Recall | F1-Score | Accuracy |
 |------------|-----------|--------|----------|----------|
 | S4D        | 79.55     | 84.73  | 82.05    | 88.62    |
-| LayoutLMv3 | 12.84     | 19.16  | 15.38    | 34.46    |
+| LayoutLMv3 | 45.46     | 60.40  | 51.88    | 66.08    |
 
-* Note here, in CORD Dataset, the learning rate for LayoutLMv3 is 1e-4 (not present in the experiment notebooks section), while in FUNSD it is 1e-5.
-* In the S4D Model, the learning rate is 1e-3 for both the datasets.
 
 
 ## 2. Document Classification
