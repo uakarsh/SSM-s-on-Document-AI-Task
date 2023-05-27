@@ -58,7 +58,7 @@ Similar to Entity Recognition, we will be using both Unimodal and Multimodal app
 | Model      | Precision | Recall | F1-Score | Accuracy |
 |------------|-----------|--------|----------|----------|
 | S4D        | 01.77     | 10.00  | 03.02    | 17.79    |
-| LayoutLMv3 | 71.53     | 66.63  | 67.98    | 70.01    |
+| LayoutLMv3 | 80.37     | 76.62  | 76.58    | 78.62    |
 
 ## 3. Single Page Document Question Answering
 
