@@ -24,7 +24,6 @@ For Unimodal approaches:
 
 For Multimodal approaches:
 * [ ] 1.1 LayoutLM's family model (this includes [LayoutLMv3](https://arxiv.org/abs/2204.08387))
-* [ ] 1.2 UDOP [Unifying Vision, Text, and Layout for Universal Document Processing](https://arxiv.org/abs/2212.02623)
 
 
 
