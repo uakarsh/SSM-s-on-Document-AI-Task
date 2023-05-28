@@ -198,8 +198,9 @@ class S4ModelForTokenClassification(nn.Module):
         """
         if input_embeds is None:
             input_embeds = self.emb(input_ids)
-        
-        input_embeds = input_embeds.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
+
+        # (B, L, d_model) -> (B, d_model, L)
+        input_embeds = input_embeds.transpose(-1, -2)
 
         for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
             # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
@@ -216,17 +217,20 @@ class S4ModelForTokenClassification(nn.Module):
             input_embeds = z + input_embeds
             if not self.prenorm:
                 # Postnorm
-                input_embeds = norm(input_embeds.transpose(-1, -2)).transpose(-1, -2)
+                input_embeds = norm(
+                    input_embeds.transpose(-1, -2)).transpose(-1, -2)
 
         input_embeds = input_embeds.transpose(-1, -2)
 
         # Decode the outputs
-        logits = self.decoder(input_embeds)  # (B, L, d_model) -> (B, L, d_output)
+        # (B, L, d_model) -> (B, L, d_output)
+        logits = self.decoder(input_embeds)
 
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.config.num_labels), labels.view(-1))
+            loss = loss_fct(
+                logits.view(-1, self.config.num_labels), labels.view(-1))
 
         return TokenClassifierOutput(
             loss=loss,
@@ -277,7 +281,8 @@ class S4ModelForSequenceClassification(nn.Module):
         """
         if inputs_embeds is None:
             inputs_embeds = self.emd(input_ids)
-        inputs_embeds = inputs_embeds.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
+        # (B, L, d_model) -> (B, d_model, L)
+        inputs_embeds = inputs_embeds.transpose(-1, -2)
 
         for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
             # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
@@ -294,7 +299,8 @@ class S4ModelForSequenceClassification(nn.Module):
             input_embeds = z + inputs_embeds
             if not self.prenorm:
                 # Postnorm
-                inputs_embeds = norm(inputs_embeds.transpose(-1, -2)).transpose(-1, -2)
+                inputs_embeds = norm(
+                    inputs_embeds.transpose(-1, -2)).transpose(-1, -2)
 
         inputs_embeds = inputs_embeds.transpose(-1, -2)
         inputs_embed = self.pooler(inputs_embeds)
@@ -304,7 +310,8 @@ class S4ModelForSequenceClassification(nn.Module):
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.config.num_labels), labels.view(-1))
+            loss = loss_fct(
+                logits.view(-1, self.config.num_labels), labels.view(-1))
 
         return SequenceClassifierOutput(
             loss=loss,
@@ -344,7 +351,7 @@ class S4ModelForQuestionAnswering(nn.Module):
         self.qa_output = nn.Linear(config.hidden_size, config.num_labels)
 
     def forward(self, input_ids: Optional[torch.Tensor] = None, inputs_embeds: Optional[torch.Tensor] = None, start_positions: Optional[torch.Tensor] = None
-                    end_positions: Optional[torch.Tensor] = None, **kwargs) -> QuestionAnsweringModelOutput:
+                end_positions: Optional[torch.Tensor] = None, **kwargs) -> QuestionAnsweringModelOutput:
         """
         Args:
             input_ids: (B, L) where L is the sequence length
@@ -355,7 +362,8 @@ class S4ModelForQuestionAnswering(nn.Module):
         """
         if inputs_embeds is None:
             inputs_embeds = self.emb(input_ids)
-        inputs_embeds = inputs_embeds.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
+        # (B, L, d_model) -> (B, d_model, L)
+        inputs_embeds = inputs_embeds.transpose(-1, -2)
 
         for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
             # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
@@ -372,10 +380,11 @@ class S4ModelForQuestionAnswering(nn.Module):
             input_embeds = z + inputs_embeds
             if not self.prenorm:
                 # Postnorm
-                inputs_embeds = norm(inputs_embeds.transpose(-1, -2)).transpose(-1, -2)
+                inputs_embeds = norm(
+                    inputs_embeds.transpose(-1, -2)).transpose(-1, -2)
 
         inputs_embeds = inputs_embeds.transpose(-1, -2)
-        
+
         logits = self.qa_outputs(inputs_embeds)
         start_logits, end_logits = logits.split(1, dim=-1)
         start_logits = start_logits.squeeze(-1).contiguous()
@@ -397,7 +406,6 @@ class S4ModelForQuestionAnswering(nn.Module):
             start_loss = loss_fct(start_logits, start_positions)
             end_loss = loss_fct(end_logits, end_positions)
             total_loss = (start_loss + end_loss) / 2
-
 
         return QuestionAnsweringModelOutput(
             loss=total_loss,
