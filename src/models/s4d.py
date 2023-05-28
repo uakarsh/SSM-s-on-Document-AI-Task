@@ -350,7 +350,7 @@ class S4ModelForQuestionAnswering(nn.Module):
         # Linear decoder
         self.qa_output = nn.Linear(config.hidden_size, config.num_labels)
 
-    def forward(self, input_ids: Optional[torch.Tensor] = None, inputs_embeds: Optional[torch.Tensor] = None, start_positions: Optional[torch.Tensor] = None
+    def forward(self, input_ids: Optional[torch.Tensor] = None, inputs_embeds: Optional[torch.Tensor] = None, start_positions: Optional[torch.Tensor] = None,
                 end_positions: Optional[torch.Tensor] = None, **kwargs) -> QuestionAnsweringModelOutput:
         """
         Args:
