@@ -348,7 +348,7 @@ class S4ModelForQuestionAnswering(nn.Module):
             self.dropouts.append(dropout_fn(config.hidden_dropout_prob))
 
         # Linear decoder
-        self.qa_output = nn.Linear(config.hidden_size, config.num_labels)
+        self.qa_outputs = nn.Linear(config.hidden_size, config.num_labels)
 
     def forward(self, input_ids: Optional[torch.Tensor] = None, inputs_embeds: Optional[torch.Tensor] = None, start_positions: Optional[torch.Tensor] = None,
                 end_positions: Optional[torch.Tensor] = None, **kwargs) -> QuestionAnsweringModelOutput:
@@ -402,7 +402,7 @@ class S4ModelForQuestionAnswering(nn.Module):
             start_positions = start_positions.clamp(0, ignored_index)
             end_positions = end_positions.clamp(0, ignored_index)
 
-            loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
+            loss_fct = nn.CrossEntropyLoss(ignore_index=ignored_index)
             start_loss = loss_fct(start_logits, start_positions)
             end_loss = loss_fct(end_logits, end_positions)
             total_loss = (start_loss + end_loss) / 2
