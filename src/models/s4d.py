@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from transformers.modeling_outputs import SequenceClassifierOutput, TokenClassifierOutput
+from transformers.modeling_outputs import SequenceClassifierOutput, TokenClassifierOutput, QuestionAnsweringModelOutput
 
 
 class DropoutNd(nn.Module):
@@ -187,7 +187,7 @@ class S4ModelForTokenClassification(nn.Module):
         # Linear decoder
         self.decoder = nn.Linear(config.hidden_size, config.num_labels)
 
-    def forward(self, input_ids: Optional[torch.Tensor] = None, labels: Optional[torch.Tensor] = None, **kwargs) -> TokenClassifierOutput:
+    def forward(self, input_ids: Optional[torch.Tensor] = None, inputs_embeds: Optional[torch.Tensor] = None, labels: Optional[torch.Tensor] = None, **kwargs) -> TokenClassifierOutput:
         """
         Args:
             input_ids: (B, L) where L is the sequence length
@@ -196,12 +196,14 @@ class S4ModelForTokenClassification(nn.Module):
             logits: (B, L, d_output)
             loss: scalar
         """
-        x = self.emb(input_ids)  # (B, L, d_input) -> (B, L, d_model)
-        x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
+        if input_embeds is None:
+            input_embeds = self.emb(input_ids)
+        
+        input_embeds = input_embeds.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
 
         for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
             # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
-            z = x
+            z = input_embeds
             if self.prenorm:
                 # Prenorm
                 z = norm(z.transpose(-1, -2)).transpose(-1, -2)
@@ -211,15 +213,15 @@ class S4ModelForTokenClassification(nn.Module):
             # Dropout on the output of the S4 block
             z = dropout(z)
             # Residual connection
-            x = z + x
+            input_embeds = z + input_embeds
             if not self.prenorm:
                 # Postnorm
-                x = norm(x.transpose(-1, -2)).transpose(-1, -2)
+                input_embeds = norm(input_embeds.transpose(-1, -2)).transpose(-1, -2)
 
-        x = x.transpose(-1, -2)
+        input_embeds = input_embeds.transpose(-1, -2)
 
         # Decode the outputs
-        logits = self.decoder(x)  # (B, L, d_model) -> (B, L, d_output)
+        logits = self.decoder(input_embeds)  # (B, L, d_model) -> (B, L, d_output)
 
         loss = None
         if labels is not None:
@@ -264,7 +266,7 @@ class S4ModelForSequenceClassification(nn.Module):
         # Linear decoder
         self.decoder = nn.Linear(config.hidden_size, config.num_labels)
 
-    def forward(self, input_ids: Optional[torch.Tensor] = None, labels: Optional[torch.Tensor] = None, **kwargs) -> SequenceClassifierOutput:
+    def forward(self, input_ids: Optional[torch.Tensor] = None, inputs_embeds: Optional[torch.Tensor] = None, labels: Optional[torch.Tensor] = None, **kwargs) -> SequenceClassifierOutput:
         """
         Args:
             input_ids: (B, L) where L is the sequence length
@@ -273,12 +275,13 @@ class S4ModelForSequenceClassification(nn.Module):
             logits: (B, d_output)
             loss: scalar
         """
-        x = self.emb(input_ids)  # (B, L, d_input) -> (B, L, d_model)
-        x = x.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
+        if inputs_embeds is None:
+            inputs_embeds = self.emd(input_ids)
+        inputs_embeds = inputs_embeds.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
 
         for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
             # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
-            z = x
+            z = inputs_embeds
             if self.prenorm:
                 # Prenorm
                 z = norm(z.transpose(-1, -2)).transpose(-1, -2)
@@ -288,15 +291,15 @@ class S4ModelForSequenceClassification(nn.Module):
             # Dropout on the output of the S4 block
             z = dropout(z)
             # Residual connection
-            x = z + x
+            input_embeds = z + inputs_embeds
             if not self.prenorm:
                 # Postnorm
-                x = norm(x.transpose(-1, -2)).transpose(-1, -2)
+                inputs_embeds = norm(inputs_embeds.transpose(-1, -2)).transpose(-1, -2)
 
-        x = x.transpose(-1, -2)
-        x = self.pooler(x)
+        inputs_embeds = inputs_embeds.transpose(-1, -2)
+        inputs_embed = self.pooler(inputs_embeds)
         # Decode the outputs
-        logits = self.decoder(x)  # (B, d_model) -> (B, d_output)
+        logits = self.decoder(inputs_embeds)  # (B, d_model) -> (B, d_output)
 
         loss = None
         if labels is not None:
@@ -306,4 +309,98 @@ class S4ModelForSequenceClassification(nn.Module):
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits
+        )
+
+
+class S4ModelForQuestionAnswering(nn.Module):
+    def __init__(self, config):
+        '''
+        Args:
+            config: S4Config
+        '''
+        super().__init__()
+
+        self.config = config
+        self.prenorm = config.prenorm
+        self.emb = nn.Embedding(
+            config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
+
+        # Stack S4 layers as residual blocks
+        self.s4_layers = nn.ModuleList()
+        self.norms = nn.ModuleList()
+        self.dropouts = nn.ModuleList()
+
+        dropout_fn = DropoutNd
+
+        for _ in range(config.num_hidden_layers):
+            self.s4_layers.append(
+                S4D(config.hidden_size, dropout=config.hidden_dropout_prob,
+                    transposed=True, lr=min(0.001, config.lr))
+            )
+            self.norms.append(nn.LayerNorm(config.hidden_size))
+            self.dropouts.append(dropout_fn(config.hidden_dropout_prob))
+
+        # Linear decoder
+        self.qa_output = nn.Linear(config.hidden_size, config.num_labels)
+
+    def forward(self, input_ids: Optional[torch.Tensor] = None, inputs_embeds: Optional[torch.Tensor] = None, start_positions: Optional[torch.Tensor] = None
+                    end_positions: Optional[torch.Tensor] = None, **kwargs) -> QuestionAnsweringModelOutput:
+        """
+        Args:
+            input_ids: (B, L) where L is the sequence length
+            labels: (B, L) where L is the sequence length
+        Returns:
+            logits: (B, d_output)
+            loss: scalar
+        """
+        if inputs_embeds is None:
+            inputs_embeds = self.emb(input_ids)
+        inputs_embeds = inputs_embeds.transpose(-1, -2)  # (B, L, d_model) -> (B, d_model, L)
+
+        for layer, norm, dropout in zip(self.s4_layers, self.norms, self.dropouts):
+            # Each iteration of this loop will map (B, d_model, L) -> (B, d_model, L)
+            z = inputs_embeds
+            if self.prenorm:
+                # Prenorm
+                z = norm(z.transpose(-1, -2)).transpose(-1, -2)
+
+            # Apply S4 block: we ignore the state input and output
+            z, _ = layer(z)
+            # Dropout on the output of the S4 block
+            z = dropout(z)
+            # Residual connection
+            input_embeds = z + inputs_embeds
+            if not self.prenorm:
+                # Postnorm
+                inputs_embeds = norm(inputs_embeds.transpose(-1, -2)).transpose(-1, -2)
+
+        inputs_embeds = inputs_embeds.transpose(-1, -2)
+        
+        logits = self.qa_outputs(inputs_embeds)
+        start_logits, end_logits = logits.split(1, dim=-1)
+        start_logits = start_logits.squeeze(-1).contiguous()
+        end_logits = end_logits.squeeze(-1).contiguous()
+
+        total_loss = None
+        if start_positions is not None and end_positions is not None:
+            # If we are on multi-GPU, split add a dimension
+            if len(start_positions.size()) > 1:
+                start_positions = start_positions.squeeze(-1)
+            if len(end_positions.size()) > 1:
+                end_positions = end_positions.squeeze(-1)
+            # sometimes the start/end positions are outside our model inputs, we ignore these terms
+            ignored_index = start_logits.size(1)
+            start_positions = start_positions.clamp(0, ignored_index)
+            end_positions = end_positions.clamp(0, ignored_index)
+
+            loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
+            start_loss = loss_fct(start_logits, start_positions)
+            end_loss = loss_fct(end_logits, end_positions)
+            total_loss = (start_loss + end_loss) / 2
+
+
+        return QuestionAnsweringModelOutput(
+            loss=total_loss,
+            start_logits=start_logits,
+            end_logits=end_logits,
         )
