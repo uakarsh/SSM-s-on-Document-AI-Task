@@ -4,9 +4,9 @@ This repository contains my experiments of SSM (State Space Models) on various D
 
 ## Current Plan:
 
-- [ ] 1. Entity Recognition
-- [ ] 2. Document Classification
-- [ ] 3. Single Page Document Question Answering
+- [x] 1. Entity Recognition
+- [x] 2. Document Classification
+- [x] 3. Single Page Document Question Answering
 - [ ] 4. Multi Page Document Question Answering
 
 
@@ -20,10 +20,10 @@ This repository contains my experiments of SSM (State Space Models) on various D
 ### 1.2. Model
 For Unimodal approaches:
 
-* [ ] 1.1. State Space Models (currently planning for [S4D](https://github.com/HazyResearch/state-spaces/blob/main/models/s4/s4d.py) model)
+* [x] 1.1. State Space Models (currently planning for [S4D](https://github.com/HazyResearch/state-spaces/blob/main/models/s4/s4d.py) model)
 
 For Multimodal approaches:
-* [ ] 1.1 LayoutLM's family model (this includes [LayoutLMv3](https://arxiv.org/abs/2204.08387))
+* [x] 1.1 LayoutLM's family model (this includes [LayoutLMv3](https://arxiv.org/abs/2204.08387))
 
 
 
@@ -64,6 +64,13 @@ Similar to Entity Recognition, we will be using both Unimodal and Multimodal app
 
 ### 3.1. Dataset:
 * [DocVQA](https://arxiv.org/abs/2007.00398)
+
+### 3.2. Results
+
+| Model      | ANLS      |
+|------------|-----------|
+| S4D        | 0.0209    |
+| LayoutLMv3 | 0.0576    |
 
 
 ## 4. Multi Page Document Question Answering:
